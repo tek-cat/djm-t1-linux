@@ -1,51 +1,65 @@
-# Plan: bring the DJM-T1's built-in soundcard to Linux
+# The DJM-T1's built-in soundcard on Linux
 
-This is the largest unsolved piece and a separate, bigger effort than the MIDI arm.
-It is scoped here so it can be picked up cleanly.
+The mixer's audio is a vendor-specific interface with no Linux driver, so there is
+no PCM device. This documents the wire format (captured, below) and a driver path.
+Audio is a larger effort than the MIDI arm, but the capture makes it tractable.
 
-## The obstacle
+## The interface
 
-Interface 0 of the DJM-T1 is **vendor-specific and isochronous** (class `0xFF`,
-alt 1 has iso endpoints `0x01` OUT and `0x82` IN), not USB Audio Class. Linux has
-no driver that recognizes it, so there is no PCM device and the mixer's four-in /
-four-out Traktor Scratch soundcard is unusable. (Note: it is a Pioneer-vendor
-device, `08e4`, so the Native Instruments `snd-usb-caiaq` driver, which handles NI
-`17cc` gear, does not apply.)
+Interface 0 is **vendor-specific** (class `0xFF`), not USB Audio Class, so the
+generic `snd-usb-audio` driver ignores it. Alt setting 1 exposes two isochronous
+endpoints:
 
-## Capture plan (same method as the MIDI arm)
+| Endpoint | Dir | Type | wMaxPacketSize | bInterval |
+|---|---|---|---|---|
+| `0x01` | OUT | iso, asynchronous | 1024 | 4 (= 1 ms at high speed) |
+| `0x82` | IN | iso, asynchronous | 1024 | 4 (= 1 ms) |
 
-1. In the Win7 passthrough VM, install the driver and open the Setting Utility's
-   ASIO panel, or play audio through the device with an ASIO host, so the driver
-   actively streams.
-2. On the Linux host, capture with usbmon on the mixer's bus. Isochronous traffic
-   is high-volume, so keep captures short and stream a known signal (a fixed sine
-   tone) to make the sample format legible in the bytes.
-3. Extract two things from the trace:
-   - **Setup:** `SET_INTERFACE(iface 0, alt 1)` plus any vendor control writes that
-     select sample rate / format (look for `bmRequestType=0x40` transfers around the
-     stream start, analogous to the MIDI arm's `0x8002`-family writes).
-   - **Stream:** the iso packet size and cadence on `0x82` IN / `0x01` OUT, from
-     which the sample rate, channel count, and sample width can be inferred.
+(The device is Pioneer-vendor `08e4`, so the NI `snd-usb-caiaq` driver, which
+handles NI `17cc` vendor-iso gear, does not apply.)
 
-## Analysis
+## Captured wire format
 
-- Confirm channels (expected 4 in / 4 out), sample rate (44.1/48k), and sample
-  width (likely 24-bit packed or 32-bit) from packet size = channels x width x
-  (rate / 8000) per microframe at high speed.
-- Determine whether the format is close enough to UAC to be driven by an
-  `snd-usb-audio` quirk/`QUIRK_AUDIO_FIXED_ENDPOINT`, or whether it needs a
-  dedicated driver.
+Captured with `usbmon` on the Linux host while the passed-through device streamed
+a test tone in the Windows VM (the Pioneer driver exposes the DJM as the default
+WDM playback device, so any audio routes through these iso endpoints). Every iso
+packet, both directions, was **exactly 864 bytes**, one per 1 ms interval, with no
+variation:
 
-## Implementation options
+```
+C Zi:1:002:2 ... 0:0:864 0:1024:864 0:2048:864 ...   (IN,  each packet 864 B)
+C Zo:1:002:1 ... 0:0:864 0:864:864  0:1728:864 ...   (OUT, each packet 864 B)
+```
 
-- **ALSA kernel driver / quirk.** Cleanest for users. Either a `snd-usb-audio`
-  quirk table entry if the descriptors can be coerced, or a small standalone driver
-  modeled on `snd-usb-caiaq` (which does exactly this for NI's vendor-iso devices).
-- **Userspace driver.** libusb reading/writing the iso endpoints, bridged into
-  PipeWire/JACK. Faster to prototype, no kernel work, higher latency.
+864 bytes/ms is a constant (non-varying) size, so the rate is integer-frames-per-ms:
+**48000 Hz** (48 frames/ms). 864 / 48 = **18 bytes/frame = 6 channels x 24-bit**.
 
-## Effort
+**Format: 48 kHz, 24-bit, 6 in / 6 out, asynchronous isochronous.** Same both
+directions. Streaming is enabled purely by `SET_INTERFACE(iface 0, alt 1)`; stopping
+and restarting playback produced **no** control transfers, i.e. the format is
+**fixed** with no rate/format handshake to reverse-engineer.
 
-Realistically multiple sessions: a capture pass, format reverse-engineering, then a
-driver. Tracked as future work; MIDI (this repo's focus) does not depend on it. In
-the meantime, use a separate USB audio interface.
+## Driver path (much simpler than first feared)
+
+Because the format is fixed and there is no vendor control handshake, a driver only
+needs to: claim interface 0, select alt 1, and pump 48 kHz / 24-bit / 6-channel iso
+URBs (864-byte packets) on `0x82` IN and `0x01` OUT.
+
+- **ALSA kernel driver.** A small driver modeled on `snd-usb-caiaq` (which does
+  exactly this for NI's vendor-iso devices), registering a fixed 6-in/6-out
+  48k/S24 PCM. Cleanest for users.
+- **Userspace (fastest to prototype).** libusb submitting the iso transfers,
+  bridged into PipeWire/JACK. Higher latency, no kernel work; good for validating
+  the format end to end before committing to a kernel driver.
+
+Remaining unknowns are small: exact channel mapping (which of the 6 is which
+deck/aux/timecode) and clock/feedback behavior of the async endpoint. Both fall out
+of a prototype that plays known signals and inspects the returned frames.
+
+## Reproduce the capture
+
+1. VM with the device passed through, Pioneer driver installed (see
+   [reverse-engineering.md](reverse-engineering.md)).
+2. Play audio through the DJM (it is the default WDM output; a plain PCM WAV works).
+3. On the host: `cat /sys/kernel/debug/usb/usbmon/1u` and read the `Z` (iso) lines;
+   the `status:offset:length` triplets give the per-packet byte count.

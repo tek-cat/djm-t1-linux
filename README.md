@@ -53,7 +53,7 @@ Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, hea
 
 - ✅ **MIDI arm**: reverse-engineered and reproduced natively. Verified at the protocol level, the mixer returns the exact same acknowledgements to our arm as it does to the Windows driver. End-to-end stream confirmation is a hardware check away (the mixer only emits MIDI when a control is physically moved, on Windows too).
 - ✅ **Mixxx mapping**: complete for the mixer section (faders, EQ, filter, crossfader, browse, cue, load).
-- ⛔ **Built-in soundcard (audio)**: not yet. The DJM-T1's audio is a *vendor-specific isochronous* USB interface (not USB-Audio-Class), so the generic Linux driver ignores it and there is no PCM device. Reverse-engineering it into an ALSA driver is a possible follow-up — notes in [docs/protocol.md](docs/protocol.md). Until then, use a separate audio interface.
+- 🔬 **Built-in soundcard (audio)**: not implemented, but now **characterized**. The audio is a vendor-specific (non-USB-Audio-Class) isochronous interface, so there is no PCM device. Capturing it while it streamed revealed a **fixed 48 kHz / 24-bit / 6-in-6-out async isochronous format**, enabled by a single `SET_INTERFACE` with no rate handshake, which makes a driver tractable. Format and driver path: [docs/audio-plan.md](docs/audio-plan.md). Until a driver exists, use a separate audio interface.
 - 🔜 **LED output feedback**: the cue buttons light up; mapping Mixxx state back to them is a straightforward next step (send MIDI to the device and watch which LEDs respond).
 
 See [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) for how to tackle the open items, with ready-to-run probe scripts in [`tools/`](tools/).
