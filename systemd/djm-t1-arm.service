@@ -1,0 +1,10 @@
+[Unit]
+Description=Arm Pioneer DJM-T1 MIDI mode
+# Started on plug-in by the udev rule (ENV{SYSTEMD_WANTS}). Runs as root, so it
+# has USB access without depending on the udev MODE/GROUP.
+
+[Service]
+Type=oneshot
+# Small settle delay so the device is fully enumerated before we talk to it.
+ExecStartPre=/usr/bin/sleep 1
+ExecStart=/usr/local/bin/djm_arm -q

@@ -1,0 +1,190 @@
+<?xml version='1.0' encoding='utf-8'?>
+<MixxxControllerPreset schemaVersion="1" mixxxVersion="2.5.0+">
+    <info>
+        <name>Pioneer DJM-T1</name>
+        <author>Aaron (captured with Claude Code)</author>
+        <description>MIDI mapping for the Pioneer DJM-T1 mixer used as a control surface for Mixxx's internal (software) mixer. All controls transmit on MIDI channel 1. Requires the DJM-T1's MIDI CH1/CH2 to be enabled on the unit. Covers per-channel trim/EQ/filter/volume, crossfader, headphone mix, browse encoder, PFL cue and load. Headphone level and FX section are not mapped.</description>
+    </info>
+    <controller id="PIONEER DJM-T1 MIDI 1">
+        <scriptfiles>
+            <file functionprefix="DJMT1" filename="Pioneer-DJM-T1-scripts.js"/>
+        </scriptfiles>
+        <controls>
+
+            <!-- ============ Channel 1 (left) -> [Channel1] ============ -->
+            <control>
+                <group>[Channel1]</group>
+                <key>pregain</key>
+                <description>Ch1 TRIM / gain</description>
+                <status>0xB0</status>
+                <midino>0x0D</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[EqualizerRack1_[Channel1]_Effect1]</group>
+                <key>parameter3</key>
+                <description>Ch1 HI EQ</description>
+                <status>0xB0</status>
+                <midino>0x0F</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[EqualizerRack1_[Channel1]_Effect1]</group>
+                <key>parameter2</key>
+                <description>Ch1 MID EQ</description>
+                <status>0xB0</status>
+                <midino>0x11</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[EqualizerRack1_[Channel1]_Effect1]</group>
+                <key>parameter1</key>
+                <description>Ch1 LOW EQ</description>
+                <status>0xB0</status>
+                <midino>0x13</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[QuickEffectRack1_[Channel1]]</group>
+                <key>super1</key>
+                <description>Ch1 FILTER / COLOR</description>
+                <status>0xB0</status>
+                <midino>0x09</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[Channel1]</group>
+                <key>volume</key>
+                <description>Ch1 VOLUME fader</description>
+                <status>0xB0</status>
+                <midino>0x15</midino>
+                <options><normal/></options>
+            </control>
+
+            <!-- ============ Channel 2 (right) -> [Channel2] ============ -->
+            <control>
+                <group>[Channel2]</group>
+                <key>pregain</key>
+                <description>Ch2 TRIM / gain</description>
+                <status>0xB0</status>
+                <midino>0x0E</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[EqualizerRack1_[Channel2]_Effect1]</group>
+                <key>parameter3</key>
+                <description>Ch2 HI EQ</description>
+                <status>0xB0</status>
+                <midino>0x10</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[EqualizerRack1_[Channel2]_Effect1]</group>
+                <key>parameter2</key>
+                <description>Ch2 MID EQ</description>
+                <status>0xB0</status>
+                <midino>0x12</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[EqualizerRack1_[Channel2]_Effect1]</group>
+                <key>parameter1</key>
+                <description>Ch2 LOW EQ</description>
+                <status>0xB0</status>
+                <midino>0x14</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[QuickEffectRack1_[Channel2]]</group>
+                <key>super1</key>
+                <description>Ch2 FILTER / COLOR</description>
+                <status>0xB0</status>
+                <midino>0x0B</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>volume</key>
+                <description>Ch2 VOLUME fader</description>
+                <status>0xB0</status>
+                <midino>0x16</midino>
+                <options><normal/></options>
+            </control>
+
+            <!-- ============ Master ============ -->
+            <control>
+                <group>[Master]</group>
+                <key>crossfader</key>
+                <description>Crossfader</description>
+                <status>0xB0</status>
+                <midino>0x17</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[Master]</group>
+                <key>headMix</key>
+                <description>Headphone CUE/MASTER mix</description>
+                <status>0xB0</status>
+                <midino>0x18</midino>
+                <options><normal/></options>
+            </control>
+
+            <!-- ============ Browse encoder ============ -->
+            <control>
+                <group>[Library]</group>
+                <key>MoveVertical</key>
+                <description>Browse encoder: scroll library up/down</description>
+                <status>0xB0</status>
+                <midino>0x00</midino>
+                <options><selectknob/></options>
+            </control>
+            <control>
+                <group>[Library]</group>
+                <key>GoToItem</key>
+                <description>Browse encoder push: open/load selected item</description>
+                <status>0x90</status>
+                <midino>0x00</midino>
+                <options><normal/></options>
+            </control>
+
+            <!-- ============ Load buttons ============ -->
+            <control>
+                <group>[Channel1]</group>
+                <key>LoadSelectedTrack</key>
+                <description>LOAD selected track to deck 1</description>
+                <status>0x90</status>
+                <midino>0x01</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>LoadSelectedTrack</key>
+                <description>LOAD selected track to deck 2</description>
+                <status>0x90</status>
+                <midino>0x02</midino>
+                <options><normal/></options>
+            </control>
+
+            <!-- ============ Headphone CUE / PFL (toggle on press) ============ -->
+            <control>
+                <group>[Channel1]</group>
+                <key>DJMT1.togglePFL</key>
+                <description>Ch1 CUE: toggle headphone PFL</description>
+                <status>0x90</status>
+                <midino>0x2F</midino>
+                <options><script-binding/></options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>DJMT1.togglePFL</key>
+                <description>Ch2 CUE: toggle headphone PFL</description>
+                <status>0x90</status>
+                <midino>0x30</midino>
+                <options><script-binding/></options>
+            </control>
+
+        </controls>
+        <outputs>
+        </outputs>
+    </controller>
+</MixxxControllerPreset>

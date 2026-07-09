@@ -1,0 +1,7 @@
+# build output
+arm/djm_arm
+*.o
+# capture scratch
+*.pcap
+*.pcapng
+usbmon*.txt

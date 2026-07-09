@@ -1,0 +1,11 @@
+# Pioneer DJM-T1 (08e4:015e) on Linux.
+#
+# 1) Grant non-root access to the raw USB device so `djm_arm` can run as your
+#    user. uaccess covers normal desktop (seat) logins; the GROUP/MODE fallback
+#    covers headless / remote / multi-seat setups. Put yourself in the "audio"
+#    group, or change GROUP to one you're in (or use MODE="0666").
+SUBSYSTEM=="usb", ATTR{idVendor}=="08e4", ATTR{idProduct}=="015e", MODE="0660", GROUP="audio", TAG+="uaccess"
+
+# 2) Auto-arm MIDI whenever the mixer is plugged in, via the systemd oneshot
+#    service (runs as root, so it works regardless of the access rule above).
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="08e4", ATTR{idProduct}=="015e", TAG+="systemd", ENV{SYSTEMD_WANTS}+="djm-t1-arm.service"
