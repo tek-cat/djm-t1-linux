@@ -14,8 +14,17 @@ struct app {
     struct pw_main_loop *loop;
     struct pw_stream *source;   /* capture: device -> graph */
     struct pw_stream *sink;     /* playback: graph -> device */
+    struct spa_source *timer;
     djmt1_iso *engine;
 };
+
+static void on_timer(void *userdata, uint64_t expirations) {
+    (void)expirations;
+    struct app *a = userdata;
+    fprintf(stderr, "[djmt1] xfer-errors=%u capture-overruns=%u playback-underruns=%u\n",
+            djmt1_iso_xfer_errors(a->engine), djmt1_iso_capture_overruns(a->engine),
+            djmt1_iso_playback_underruns(a->engine));
+}
 
 #define FRAME (sizeof(float) * DJMT1_CH)   /* 24 bytes/frame, F32 x 6 */
 
@@ -94,6 +103,10 @@ int main(int argc, char **argv) {
     a.loop = pw_main_loop_new(NULL);
     pw_loop_add_signal(pw_main_loop_get_loop(a.loop), SIGINT, do_quit, &a);
     pw_loop_add_signal(pw_main_loop_get_loop(a.loop), SIGTERM, do_quit, &a);
+
+    a.timer = pw_loop_add_timer(pw_main_loop_get_loop(a.loop), on_timer, &a);
+    struct timespec value = { 5, 0 }, interval = { 5, 0 };   /* health line every 5 s */
+    pw_loop_update_timer(pw_main_loop_get_loop(a.loop), a.timer, &value, &interval, false);
 
     a.source = make_stream(&a, "DJM-T1 Capture", "Audio/Source", "Capture",
                            PW_DIRECTION_OUTPUT, &source_events);

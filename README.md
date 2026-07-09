@@ -39,6 +39,7 @@ amidi -p hw:1,0,0 -d          # watch MIDI; now move a fader and you'll see byte
 | `mixxx/` | Mixxx controller mapping (`.midi.xml` + script) |
 | `udev/99-djm-t1.rules` | non-root access + **auto-arm on plug-in** |
 | `systemd/djm-t1-arm.service` | oneshot service the udev rule triggers |
+| `audio/` | **the soundcard driver** — libusb streaming core + PipeWire device (6-in/6-out) |
 | `tools/` | probe/capture scripts to extend the mapping (LEDs, more controls, HID) |
 | `docs/WHITEPAPER.md` | full technical write-up |
 | `docs/` | reverse-engineering method, MIDI map, USB protocol, next steps |
@@ -53,7 +54,7 @@ Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, hea
 
 - ✅ **MIDI arm**: reverse-engineered and reproduced natively. Verified at the protocol level, the mixer returns the exact same acknowledgements to our arm as it does to the Windows driver. End-to-end stream confirmation is a hardware check away (the mixer only emits MIDI when a control is physically moved, on Windows too).
 - ✅ **Mixxx mapping**: complete for the mixer section (faders, EQ, filter, crossfader, browse, cue, load).
-- 🔬 **Built-in soundcard (audio)**: not implemented, but now **characterized**. The audio is a vendor-specific (non-USB-Audio-Class) isochronous interface, so there is no PCM device. Capturing it while it streamed revealed a **fixed 48 kHz / 24-bit / 6-in-6-out async isochronous format**, enabled by a single `SET_INTERFACE` with no rate handshake, which makes a driver tractable. Format and driver path: [docs/audio-plan.md](docs/audio-plan.md). Until a driver exists, use a separate audio interface.
+- ✅ **Built-in soundcard (audio)**: **working** via a userspace **PipeWire** driver ([`audio/`](audio/)). The mixer appears as a 6-in / 6-out, 48 kHz, 24-bit device. The vendor-specific isochronous format was reverse-engineered ([docs/audio-plan.md](docs/audio-plan.md)) and is streamed directly with libusb. Verified on hardware: a PipeWire recording matches the raw USB capture channel-for-channel, with 0 USB transfer errors. A kernel ALSA driver (real ALSA card, upstreamable) is the planned next tier.
 - 🔜 **LED output feedback**: the cue buttons light up; mapping Mixxx state back to them is a straightforward next step (send MIDI to the device and watch which LEDs respond).
 
 See [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) for how to tackle the open items, with ready-to-run probe scripts in [`tools/`](tools/).

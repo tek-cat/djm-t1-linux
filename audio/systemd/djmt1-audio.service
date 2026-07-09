@@ -1,0 +1,15 @@
+[Unit]
+Description=Pioneer DJM-T1 audio (PipeWire 6-in/6-out device)
+After=pipewire.service wireplumber.service
+Wants=pipewire.service
+# This is a PipeWire client, so it runs as a *user* service:
+#   install to ~/.config/systemd/user/ and:  systemctl --user enable --now djmt1-audio
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/djmt1-pipewire
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
