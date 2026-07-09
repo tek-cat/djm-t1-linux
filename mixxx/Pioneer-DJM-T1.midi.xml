@@ -2,8 +2,8 @@
 <MixxxControllerPreset schemaVersion="1" mixxxVersion="2.5.0+">
     <info>
         <name>Pioneer DJM-T1</name>
-        <author>Aaron (captured with Claude Code)</author>
-        <description>MIDI mapping for the Pioneer DJM-T1 mixer used as a control surface for Mixxx's internal (software) mixer. All controls transmit on MIDI channel 1. Requires the DJM-T1's MIDI CH1/CH2 to be enabled on the unit. Covers per-channel trim/EQ/filter/volume, crossfader, headphone mix, browse encoder, PFL cue and load. Headphone level and FX section are not mapped.</description>
+        <author>Aaron Landis</author>
+        <description>MIDI mapping for the Pioneer DJM-T1 mixer as a control surface for Mixxx's internal (software) mixer. The mixer must first be armed on Linux with djm_arm (see the djm-t1-linux project); it transmits no MIDI otherwise. All controls are on MIDI channel 1. Covers per-channel trim/EQ/filter/volume, crossfader, headphone mix, browse encoder, PFL cue and load. Headphone level and FX section are not mapped.</description>
     </info>
     <controller id="PIONEER DJM-T1 MIDI 1">
         <scriptfiles>

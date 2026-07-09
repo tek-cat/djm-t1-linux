@@ -39,15 +39,19 @@ amidi -p hw:1,0,0 -d          # watch MIDI; now move a fader and you'll see byte
 | `mixxx/` | Mixxx controller mapping (`.midi.xml` + script) |
 | `udev/99-djm-t1.rules` | non-root access + **auto-arm on plug-in** |
 | `systemd/djm-t1-arm.service` | oneshot service the udev rule triggers |
-| `docs/` | how it was reverse-engineered, the full MIDI map, the USB protocol |
+| `docs/WHITEPAPER.md` | full technical write-up |
+| `docs/` | reverse-engineering method, the MIDI map, the USB protocol |
 
 ## Mapping coverage
 
 Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, headphone mix, the browse encoder (rotate + push), the PFL/cue buttons, and the load buttons. Everything transmits on MIDI channel 1. Full table: [docs/midi-map.md](docs/midi-map.md).
 
+> **Deep dive:** [docs/WHITEPAPER.md](docs/WHITEPAPER.md) is a full technical write-up of the diagnosis, the capture method, and the findings.
+
 ## Status
 
-- ✅ **MIDI**: working (arm + mapping).
+- ✅ **MIDI arm**: reverse-engineered and reproduced natively. Verified at the protocol level, the mixer returns the exact same acknowledgements to our arm as it does to the Windows driver. End-to-end stream confirmation is a hardware check away (the mixer only emits MIDI when a control is physically moved, on Windows too).
+- ✅ **Mixxx mapping**: complete for the mixer section (faders, EQ, filter, crossfader, browse, cue, load).
 - ⛔ **Built-in soundcard (audio)**: not yet. The DJM-T1's audio is a *vendor-specific isochronous* USB interface (not USB-Audio-Class), so the generic Linux driver ignores it and there is no PCM device. Reverse-engineering it into an ALSA driver is a possible follow-up — notes in [docs/protocol.md](docs/protocol.md). Until then, use a separate audio interface.
 - 🔜 **LED output feedback**: the cue buttons light up; mapping Mixxx state back to them is a straightforward next step (send MIDI to the device and watch which LEDs respond).
 
@@ -58,7 +62,21 @@ Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, hea
 
 ## How it was done
 
-Booted Windows 7 in a KVM VM, passed the mixer through over USB, installed Pioneer's driver, and captured the USB traffic on the Linux host with `usbmon` while the driver bound the device. The arm turned out to be five vendor control writes. Full write-up: [docs/reverse-engineering.md](docs/reverse-engineering.md).
+I ran the Windows driver in a VM with the mixer passed through, and captured the USB traffic **on the Linux host**. Because a passed-through device is proxied through the host kernel's usbfs, every packet the Windows driver sends is visible to `usbmon`, no analyzer needed inside Windows:
+
+```
+  ┌───────────┐   USB    ┌───────────────── Linux host ──────────────────┐
+  │  DJM-T1   │ ───────► │   usbmon  ◄─── sees every URB on the bus        │
+  │ 08e4:015e │          │      ▲                                          │
+  └───────────┘          │      │  usbfs passthrough                       │
+                         │   ┌──┴──────────── QEMU / KVM ───────────────┐  │
+                         │   │  Windows 7 + Pioneer driver               │  │
+                         │   │  (issues the vendor "arm" control writes) │  │
+                         │   └───────────────────────────────────────────┘  │
+                         └───────────────────────────────────────────────────┘
+```
+
+The arm turned out to be five vendor control writes, reproduced natively in ~60 lines of libusb. Full method: [docs/reverse-engineering.md](docs/reverse-engineering.md). Full write-up: [docs/WHITEPAPER.md](docs/WHITEPAPER.md).
 
 ## License
 
