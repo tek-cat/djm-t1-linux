@@ -39,8 +39,9 @@ amidi -p hw:1,0,0 -d          # watch MIDI; now move a fader and you'll see byte
 | `mixxx/` | Mixxx controller mapping (`.midi.xml` + script) |
 | `udev/99-djm-t1.rules` | non-root access + **auto-arm on plug-in** |
 | `systemd/djm-t1-arm.service` | oneshot service the udev rule triggers |
+| `tools/` | probe/capture scripts to extend the mapping (LEDs, more controls, HID) |
 | `docs/WHITEPAPER.md` | full technical write-up |
-| `docs/` | reverse-engineering method, the MIDI map, the USB protocol |
+| `docs/` | reverse-engineering method, MIDI map, USB protocol, next steps |
 
 ## Mapping coverage
 
@@ -54,6 +55,8 @@ Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, hea
 - ✅ **Mixxx mapping**: complete for the mixer section (faders, EQ, filter, crossfader, browse, cue, load).
 - ⛔ **Built-in soundcard (audio)**: not yet. The DJM-T1's audio is a *vendor-specific isochronous* USB interface (not USB-Audio-Class), so the generic Linux driver ignores it and there is no PCM device. Reverse-engineering it into an ALSA driver is a possible follow-up — notes in [docs/protocol.md](docs/protocol.md). Until then, use a separate audio interface.
 - 🔜 **LED output feedback**: the cue buttons light up; mapping Mixxx state back to them is a straightforward next step (send MIDI to the device and watch which LEDs respond).
+
+See [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) for how to tackle the open items, with ready-to-run probe scripts in [`tools/`](tools/).
 
 ## Troubleshooting
 
