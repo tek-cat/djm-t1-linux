@@ -1,5 +1,10 @@
 # build output
 arm/djm_arm
+midi/djm_midi
+audio/djmt1-capture
+audio/djmt1-playback
+audio/djmt1-monitor
+audio/djmt1-pipewire
 *.o
 # capture scratch
 *.pcap
