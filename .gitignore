@@ -22,3 +22,5 @@ kernel/.*.cmd
 kernel/.tmp_versions/
 kernel/modules.order
 kernel/Module.symvers
+tools/hid-capture.txt
+tools/*.s24
