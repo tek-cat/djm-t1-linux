@@ -63,8 +63,10 @@ Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, hea
 - ✅ **Simultaneous audio + MIDI**: confirmed. Run `djm_midi --no-audio` alongside the PipeWire audio driver and the DJM-T1 is a 6-in/6-out soundcard and a MIDI controller at the same time.
 - ✅ **Mixxx mapping**: complete for the mixer section (faders, EQ, filter, crossfader, browse, cue, load).
 - ✅ **Built-in soundcard (audio)**: **working** via a userspace **PipeWire** driver ([`audio/`](audio/)). The mixer appears as a 6-in / 6-out, 48 kHz, 24-bit device. The vendor-specific isochronous format was reverse-engineered ([docs/audio-plan.md](docs/audio-plan.md)) and is streamed directly with libusb. Verified on hardware: a PipeWire recording matches the raw USB capture channel-for-channel, with 0 USB transfer errors. A kernel ALSA driver (real ALSA card, upstreamable) is the planned next tier.
+- 🔜 **LED output feedback**: `djm_midi` is bidirectional and writing to the mixer's MIDI OUT (ep `0x04`) is verified; conventional CUE-LED `<output>` blocks are in the mapping, pending a panel check.
+- 🔜 **10-bit control resolution**: the HID pipe carries every continuous control at 10-bit precision (MIDI exposes only 7). Since `djm_midi` already reads that pipe, exposing it as 14-bit MIDI is a code change, not new hardware. Analysis: [docs/hid-analysis.md](docs/hid-analysis.md).
+- 🔜 **Digital vinyl (DVS / timecode)**: the mixer was built for Traktor Scratch; its phono inputs are digitized to the USB channels we already stream, so they can drive Mixxx's vinyl control. Wiring: [docs/dvs-timecode.md](docs/dvs-timecode.md).
 - 🔜 **Unified daemon**: fold audio + MIDI into one process that owns all four pipes (today they run as two cooperating processes that coexist via `--no-audio`).
-- 🔜 **LED output feedback**: the cue buttons light up; mapping Mixxx state back to them is a straightforward next step (send MIDI to the device and watch which LEDs respond).
 
 See [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) for how to tackle the open items, with ready-to-run probe scripts in [`tools/`](tools/).
 

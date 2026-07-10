@@ -3,7 +3,7 @@
     <info>
         <name>Pioneer DJM-T1</name>
         <author>Aaron Landis</author>
-        <description>MIDI mapping for the Pioneer DJM-T1 mixer as a control surface for Mixxx's internal (software) mixer. The mixer must first be armed on Linux with djm_arm (see the djm-t1-linux project); it transmits no MIDI otherwise. All controls are on MIDI channel 1. Covers per-channel trim/EQ/filter/volume, crossfader, headphone mix, browse encoder, PFL cue and load. Headphone level and FX section are not mapped.</description>
+        <description>MIDI mapping for the Pioneer DJM-T1 mixer as a control surface for Mixxx's internal (software) mixer. Requires the djm_midi bridge running on Linux (see the djm-t1-linux project); the mixer transmits no MIDI otherwise (arming alone is not enough). All controls are on MIDI channel 1. Covers per-channel trim/EQ/filter/volume, crossfader, headphone mix, browse encoder, PFL cue and load, plus CUE-button LED feedback. Headphone level and FX section are not mapped.</description>
     </info>
     <controller id="PIONEER DJM-T1 MIDI 1">
         <scriptfiles>
@@ -185,6 +185,30 @@
 
         </controls>
         <outputs>
+            <!-- CUE-button LEDs. Convention: the LED responds to the same note the
+                 button sends (0x2F ch1, 0x30 ch2). Verified: djm_midi writes these
+                 to the mixer's MIDI OUT (ep 0x04). Confirm on the panel and adjust
+                 the note if a given LED does not light. -->
+            <output>
+                <group>[Channel1]</group>
+                <key>pfl</key>
+                <description>Ch1 CUE button LED tracks PFL state</description>
+                <status>0x90</status>
+                <midino>0x2F</midino>
+                <on>0x7F</on>
+                <off>0x00</off>
+                <minimum>0.5</minimum>
+            </output>
+            <output>
+                <group>[Channel2]</group>
+                <key>pfl</key>
+                <description>Ch2 CUE button LED tracks PFL state</description>
+                <status>0x90</status>
+                <midino>0x30</midino>
+                <on>0x7F</on>
+                <off>0x00</off>
+                <minimum>0.5</minimum>
+            </output>
         </outputs>
     </controller>
 </MixxxControllerPreset>
