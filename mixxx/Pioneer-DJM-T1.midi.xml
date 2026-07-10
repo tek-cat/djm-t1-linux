@@ -3,7 +3,7 @@
     <info>
         <name>Pioneer DJM-T1</name>
         <author>Aaron Landis</author>
-        <description>MIDI mapping for the Pioneer DJM-T1 mixer as a control surface for Mixxx's internal (software) mixer. Requires the djm_midi bridge running on Linux (see the djm-t1-linux project); the mixer transmits no MIDI otherwise (arming alone is not enough). All controls are on MIDI channel 1. Covers per-channel trim/EQ/filter/volume, crossfader, headphone mix, browse encoder, PFL cue and load, plus CUE-button LED feedback. Headphone level and FX section are not mapped.</description>
+        <description>MIDI mapping for the Pioneer DJM-T1 mixer as a control surface for Mixxx's internal (software) mixer. Requires the djm_midi bridge running on Linux (see the djm-t1-linux project); the mixer transmits no MIDI otherwise (arming alone is not enough). All controls are on MIDI channel 1. Covers per-channel trim/3-band EQ/volume, crossfader, browse encoder (rotate + push), track load, PFL cue, and Deck A/B play/cue/sync transport, plus CUE-button LED feedback. The master, booth, and headphone knobs are analog and send no MIDI. The FX and performance (hot cue, sampler, auto-loop) sections are documented in docs/midi-map.md but not yet mapped. Control numbers verified by full-panel calibration.</description>
     </info>
     <controller id="PIONEER DJM-T1 MIDI 1">
         <scriptfiles>
@@ -42,14 +42,6 @@
                 <description>Ch1 LOW EQ</description>
                 <status>0xB0</status>
                 <midino>0x13</midino>
-                <options><normal/></options>
-            </control>
-            <control>
-                <group>[QuickEffectRack1_[Channel1]]</group>
-                <key>super1</key>
-                <description>Ch1 FILTER / COLOR</description>
-                <status>0xB0</status>
-                <midino>0x09</midino>
                 <options><normal/></options>
             </control>
             <control>
@@ -95,14 +87,6 @@
                 <options><normal/></options>
             </control>
             <control>
-                <group>[QuickEffectRack1_[Channel2]]</group>
-                <key>super1</key>
-                <description>Ch2 FILTER / COLOR</description>
-                <status>0xB0</status>
-                <midino>0x0B</midino>
-                <options><normal/></options>
-            </control>
-            <control>
                 <group>[Channel2]</group>
                 <key>volume</key>
                 <description>Ch2 VOLUME fader</description>
@@ -118,14 +102,6 @@
                 <description>Crossfader</description>
                 <status>0xB0</status>
                 <midino>0x17</midino>
-                <options><normal/></options>
-            </control>
-            <control>
-                <group>[Master]</group>
-                <key>headMix</key>
-                <description>Headphone CUE/MASTER mix</description>
-                <status>0xB0</status>
-                <midino>0x18</midino>
                 <options><normal/></options>
             </control>
 
@@ -180,6 +156,58 @@
                 <description>Ch2 CUE: toggle headphone PFL</description>
                 <status>0x90</status>
                 <midino>0x30</midino>
+                <options><script-binding/></options>
+            </control>
+
+            <!-- ============ Deck transport (DECK A -> [Channel1], DECK B -> [Channel2]) ============
+                 Each physical button emits Note-On 0x7F then 0x00 per press, so play/sync
+                 toggle on the 0x7F edge in the script; cue_default handles both edges itself. -->
+            <control>
+                <group>[Channel1]</group>
+                <key>DJMT1.togglePlay</key>
+                <description>Deck A PLAY/PAUSE</description>
+                <status>0x90</status>
+                <midino>0x03</midino>
+                <options><script-binding/></options>
+            </control>
+            <control>
+                <group>[Channel1]</group>
+                <key>cue_default</key>
+                <description>Deck A CUE</description>
+                <status>0x90</status>
+                <midino>0x0B</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[Channel1]</group>
+                <key>DJMT1.toggleSync</key>
+                <description>Deck A SYNC</description>
+                <status>0x90</status>
+                <midino>0x05</midino>
+                <options><script-binding/></options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>DJMT1.togglePlay</key>
+                <description>Deck B PLAY/PAUSE</description>
+                <status>0x90</status>
+                <midino>0x04</midino>
+                <options><script-binding/></options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>cue_default</key>
+                <description>Deck B CUE</description>
+                <status>0x90</status>
+                <midino>0x0C</midino>
+                <options><normal/></options>
+            </control>
+            <control>
+                <group>[Channel2]</group>
+                <key>DJMT1.toggleSync</key>
+                <description>Deck B SYNC</description>
+                <status>0x90</status>
+                <midino>0x06</midino>
                 <options><script-binding/></options>
             </control>
 

@@ -24,3 +24,7 @@ kernel/modules.order
 kernel/Module.symvers
 tools/hid-capture.txt
 tools/*.s24
+# calibration tool output (work in progress; the finished map is docs/midi-map.md)
+tools/calibration.json
+tools/cal-quick.txt
+tools/__pycache__/
