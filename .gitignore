@@ -1,6 +1,7 @@
 # build output
 arm/djm_arm
 midi/djm_midi
+midi/djm_full
 audio/djmt1-capture
 audio/djmt1-playback
 audio/djmt1-monitor
