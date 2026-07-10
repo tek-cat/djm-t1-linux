@@ -49,8 +49,16 @@ Example (report `0x09`, one fader moving at bytes [6,7] while [4,5] hold `0x02d3
 
 The complete field-to-control assignment (which report/offset is which physical
 fader, EQ band, filter, crossfader, headphone mix) still needs a **per-control
-capture**: run `djm_midi`, move one control at a time, and record which report ID
-and byte offset changes. That is the one hardware step left to finish this map.
+capture**. The bridge has a `--hid-probe` mode that prints each HID report as it
+changes, so this is one command plus moving controls:
+
+```sh
+djm_midi --hid-probe --no-audio -v    # prints "HID: .." on change and "MIDI: .." per message
+#   move ONE control at a time; note which report ID + byte offset moves,
+#   alongside the MIDI CC it corresponds to
+```
+
+That is the one hardware step left to finish this map.
 
 ## Using the extra resolution: high-res MIDI out of djm_midi
 

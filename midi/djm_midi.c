@@ -19,7 +19,8 @@
 //
 //   Build:  make            (needs libusb-1.0 and alsa-lib)
 //   Run:    ./djm_midi      (needs device access; see ../udev/)
-//   Flags:  -v  print every MIDI message   --no-audio / --no-hid  (diagnostics)
+//   Flags:  -v  print every MIDI message   --hid-probe  print changed HID reports
+//           --no-audio / --no-hid  (diagnostics)
 //
 // SPDX-License-Identifier: MIT
 #include <libusb-1.0/libusb.h>
@@ -54,8 +55,14 @@ static volatile sig_atomic_t do_quit = 0;
 static void on_sig(int s) { (void)s; do_quit = 1; }
 
 static libusb_device_handle *h;
-static int audio_on = 1, hid_on = 1, verbose = 0;
+static int audio_on = 1, hid_on = 1, verbose = 0, hid_probe = 0;
 static int running = 1;
+
+// --hid-probe support: print each HID report as it changes, so the 10-bit
+// field-to-control map can be captured (move one control, see which report ID
+// and byte offset moves). See docs/hid-analysis.md.
+static unsigned char last_hid[HID_LEN];
+static int have_last_hid = 0;
 
 // ALSA sequencer (duplex: device MIDI -> seq via encoder; seq -> device via decoder).
 static snd_seq_t *seq;
@@ -147,6 +154,16 @@ static void LIBUSB_CALL midi_cb(struct libusb_transfer *t) {
 }
 static void LIBUSB_CALL hid_cb(struct libusb_transfer *t) {
     if (t->status == LIBUSB_TRANSFER_NO_DEVICE) { do_quit = 1; return; }
+    if (hid_probe && t->status == LIBUSB_TRANSFER_COMPLETED && t->actual_length > 0) {
+        int len = t->actual_length;
+        if (!have_last_hid || memcmp(last_hid, t->buffer, len) != 0) {
+            printf("HID:");
+            for (int i = 0; i < len; i++) printf(" %02x", t->buffer[i]);
+            printf("\n"); fflush(stdout);
+            memcpy(last_hid, t->buffer, len > HID_LEN ? HID_LEN : len);
+            have_last_hid = 1;
+        }
+    }
     if (running && hid_on && !do_quit) libusb_submit_transfer(t);
 }
 static void LIBUSB_CALL audio_cb(struct libusb_transfer *t) {
@@ -174,6 +191,7 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "-v")) verbose = 1;
         else if (!strcmp(argv[i], "--no-audio")) audio_on = 0;
         else if (!strcmp(argv[i], "--no-hid")) hid_on = 0;
+        else if (!strcmp(argv[i], "--hid-probe")) hid_probe = 1;
     }
     signal(SIGINT, on_sig);
     signal(SIGTERM, on_sig);
