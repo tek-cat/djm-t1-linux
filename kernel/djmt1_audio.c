@@ -74,9 +74,11 @@ static const struct snd_pcm_hardware djmt1_hw = {
 	.periods_min = 2, .periods_max = 1024,
 };
 
-/* Advance the hw pointer by nframes, copying to/from the ALSA ring; elapse a
+/*
+ * Advance the hw pointer by nframes, copying to/from the ALSA ring; elapse a
  * period when we cross a period boundary. Caller holds no lock; runtime is safe
- * inside the URB completion. Returns via snd_pcm_period_elapsed when due. */
+ * inside the URB completion. Returns via snd_pcm_period_elapsed when due.
+ */
 static void djmt1_transfer(struct djmt1_stream *s, unsigned char *pkt,
 			   unsigned int nframes, bool capture)
 {

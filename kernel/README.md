@@ -12,10 +12,12 @@ copied to/from the PCM ring with no format conversion.
 
 ## Status
 
-**Compiles cleanly; NOT yet loaded or tested on hardware.** It is assembled from
-the verified userspace wire format (`../audio/`), but the PCM/URB pointer handling
-has not been validated against the device. Treat it as a reviewed draft, not a
-proven driver. The tested audio path today is the userspace PipeWire driver.
+**Compiles cleanly (zero compiler warnings) and passes `scripts/checkpatch.pl`
+with 0 errors / 0 warnings; NOT yet loaded or tested on hardware.** It is
+assembled from the verified userspace wire format (`../audio/`), but the PCM/URB
+pointer handling has not been validated against the device. Treat it as a
+reviewed, statically-clean draft, not a proven driver. The tested audio path
+today is the userspace PipeWire driver.
 
 Loading an untested USB/ALSA module can oops or wedge the device. Review the source
 first, and test on a machine you can reboot.
