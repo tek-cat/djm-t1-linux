@@ -63,11 +63,17 @@ method as [reverse-engineering.md](reverse-engineering.md)) would let those
 settings be changed from Linux with no Windows. Best done at the bench: it needs
 the device passed to the VM, which re-enumerates it.
 
-## 7. Kernel drivers  (large effort, upstreamable)
+## 7. Kernel audio driver  (drafted, compiles; needs hardware validation)
 
-The audio path is a userspace PipeWire driver; a proper kernel ALSA driver (real
-ALSA card) is the upstreamable next tier. See
-[audio-driver-design.md](audio-driver-design.md).
+`kernel/djmt1_audio.c` is a standalone in-kernel ALSA driver for the soundcard
+(the upstream-track alternative to the userspace PipeWire driver). It builds
+cleanly against the running kernel (`make -C kernel LLVM=1` on a clang-built
+kernel) and registers a 6-in/6-out S24_3LE card; the device's frame layout maps
+1:1 to `S24_3LE`, so no conversion. **It has not been loaded or tested on
+hardware** yet: validate the PCM/URB pointer handling on a machine you can reboot,
+then it is a candidate for upstreaming. Design notes:
+[audio-driver-design.md](audio-driver-design.md); build/test steps:
+[../kernel/README.md](../kernel/README.md).
 
 ---
 
