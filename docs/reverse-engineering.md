@@ -10,7 +10,7 @@ for any "works on Windows, dead on Linux" USB device.
 Rather than install a USB analyzer inside Windows, run Windows in a VM with the
 device **passed through**, and capture on the **Linux host**. QEMU forwards a
 passed-through USB device via the host kernel's usbfs, so every packet the Windows
-driver exchanges with the device is visible to Linux's `usbmon` — no guest-side
+driver exchanges with the device is visible to Linux's `usbmon`, no guest-side
 tooling, and the capture lands right where you'll analyze it.
 
 ## Steps
@@ -24,7 +24,7 @@ tooling, and the capture lands right where you'll analyze it.
    </hostdev>
    ```
 2. **Driver.** Install Pioneer's DJM-T1 driver + Setting Utility in the guest. The
-   utility's MIDI tab only sets the channel (CH 1) — the *driver* does the arming.
+   utility's MIDI tab only sets the channel (CH 1); the *driver* does the arming.
 3. **usbmon.** On the host:
    ```sh
    sudo modprobe usbmon                       # built-in on some kernels
@@ -48,9 +48,15 @@ tooling, and the capture lands right where you'll analyze it.
 
 libusb, ~60 lines ([../arm/djm_arm.c](../arm/djm_arm.c)): open `08e4:015e`, then
 `libusb_control_transfer(h, 0x40, 0x03, wValue, wIndex, NULL, 0, ...)` for each
-write. Vendor-**device** recipient, so no interface claim / driver detach is needed
-and `hw:X,0,0` stays live for `amidi`/Mixxx. The device returns the same `00 01 00`
-acks it gave Windows — confirmation the replay is faithful.
+write. Vendor-**device** recipient, so no interface claim or driver detach is needed.
+The device returns the same `00 01 00` acks it gave Windows, confirmation the replay
+is faithful.
+
+But arming alone does **not** make the mixer transmit MIDI: capturing the *complete*
+Windows session (not just the connect) showed it also gates transmission on its HID
+pipe being polled alongside a live audio session. That is why the production tool is
+[`../midi/djm_midi.c`](../midi/djm_midi.c) (arm + HID poll + audio + ALSA-seq bridge),
+not `djm_arm` alone. Full story: [WHITEPAPER.md](WHITEPAPER.md).
 
 ## Gotchas we hit
 
@@ -59,7 +65,7 @@ acks it gave Windows — confirmation the replay is faithful.
   power-cycle. Diagnose flapping with `journalctl -k | grep "usb 1-.*: USB disconnect"`.
 - usbmon is a **kernel module matching the running kernel**. If you updated the
   kernel but haven't rebooted, its module dir is gone and `modprobe usbmon` fails
-  with "not found" — reboot into the current kernel first.
+  with "not found", so reboot into the current kernel first.
 - Passed-through USB devices still appear in host `lsusb` (QEMU claims them via
   usbfs, they stay on the bus). Check `/proc/asound/cards` to tell which side
   actually owns the ALSA/driver binding.

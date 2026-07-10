@@ -1,4 +1,4 @@
-# DJM-T1 audio driver — design
+# DJM-T1 audio driver design
 
 Staged build of a Linux driver for the DJM-T1's built-in soundcard. Format is known
 and fixed (see [audio-plan.md](audio-plan.md)): **48 kHz, 24-bit, 6-in / 6-out,
@@ -9,7 +9,7 @@ untouched).
 
 ## Phases
 
-**Phase 1 — userspace streaming core (`audio/`, C + libusb).** Validate the format,
+**Phase 1: userspace streaming core (`audio/`, C + libusb).** Validate the format,
 clock, and channel map end to end before any kernel code.
 - *1a Capture:* claim iface 0 / alt 1, run a ring of async iso IN transfers on
   `0x82`, de-interleave 6 x 24-bit, report per-packet framing and per-channel
@@ -22,19 +22,19 @@ clock, and channel map end to end before any kernel code.
   which of the 6 IN channels is which, and confirm audio sounds correct. Needs a
   desk session.
 
-**Phase 2 — PipeWire integration.** Wrap the streaming core as a PipeWire node so
+**Phase 2: PipeWire integration.** Wrap the streaming core as a PipeWire node so
 apps see a real 6-in/6-out device. The usable end product on modern systems.
 
-**Phase 3 — kernel ALSA driver.** Port the validated design to a
+**Phase 3: kernel ALSA driver.** Port the validated design to a
 `snd-usb-caiaq`-style out-of-tree module: a real ALSA card, upstreamable.
 
 ## Streaming core architecture
 
-- `djmt1_usb` — device open, claim iface 0, set alt 1, teardown.
-- `djmt1_iso` — the iso engine: allocate N transfers x M packets, fill/submit,
+- `djmt1_usb`: device open, claim iface 0, set alt 1, teardown.
+- `djmt1_iso`: the iso engine, allocate N transfers x M packets, fill/submit,
   resubmit in the completion callback, run `libusb_handle_events`. One instance per
   direction (IN capture, OUT playback).
-- `pcm` — de-interleave/interleave S24_3LE <-> planar float per 6 channels; ring
+- `pcm`: de-interleave/interleave S24_3LE <-> planar float per 6 channels; ring
   buffers between the iso callbacks and the consumer/producer.
 - Front ends: `djmt1-capture` (dump/analyze IN) for 1a; `djmt1-loopback`/tone for
   1b; later a PipeWire node for phase 2.

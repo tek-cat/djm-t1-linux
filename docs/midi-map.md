@@ -22,7 +22,7 @@ the bridge's sequencer port replaces it.)
 |---|---|
 | Crossfader | CC 0x17 (23) |
 | Headphone MIX (cue/master) | CC 0x18 (24) |
-| Headphone LEVEL | analog only — sends no MIDI |
+| Headphone LEVEL | analog only, sends no MIDI |
 
 ## Browse encoder
 
@@ -42,14 +42,14 @@ the bridge's sequencer port replaces it.)
 
 ## LED / output feedback
 
-`djm_midi` is bidirectional: its ALSA port is duplex, and any MIDI Mixxx (or
-`aplaymidi`) sends to it is packed into USB-MIDI and written to the mixer's MIDI
-OUT (ep `0x04`). To discover which message lights which LED, run the bridge and
-send test notes/CCs, e.g. `aplaymidi` or:
+`djm_midi` is bidirectional: its ALSA port is duplex, and any MIDI sent to it is
+packed into USB-MIDI and written to the mixer's MIDI OUT (ep `0x04`, verified at
+the USB level). To discover which message lights which LED, run the bridge and
+send test notes/CCs to its port, then watch the panel. For example, put a Note-On
+`0x2F` in a one-note MIDI file and play it to the port:
 
 ```sh
-# send Note-On 0x2F vel 0x7F to the DJM (watch the CH1 CUE LED)
-amidi is gone; use the seq port instead:  aconnect <yoursrc> "Pioneer DJM-T1"
+aplaymidi -p "Pioneer DJM-T1" note.mid    # watch the CH1 CUE LED
 ```
 
 Then add `<output>` blocks to the Mixxx mapping that emit those messages on the
@@ -57,11 +57,11 @@ relevant Mixxx control changes. The CUE buttons are known to illuminate.
 
 ## Not yet mapped
 
-The FX section and any remaining assignable buttons are not in the table yet —
+The FX section and any remaining assignable buttons are not in the table yet:
 capture them the same way (`aseqdump`, move/press, read) and extend
 `mixxx/Pioneer-DJM-T1.midi.xml`. PRs welcome.
 
 Note: the channel faders and EQ are also fed through the mixer's **analog** audio
 path. In Mixxx use *internal* mixing (Mixxx does the mixing, these CCs drive its
 software mixer) OR *external* mixing (the DJM mixes analog and you leave the
-faders/EQ unmapped) — not both, or you get double attenuation.
+faders/EQ unmapped), not both, or you get double attenuation.

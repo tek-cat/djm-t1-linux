@@ -6,10 +6,10 @@ USB ID **`08e4:015e`** (Pioneer Corp. "PIONEER DJM-T1"), high-speed (USB 2.0).
 
 | # | Class | Endpoints | Purpose |
 |---|---|---|---|
-| 0 | Vendor-specific (0xFF) | alt 0: none; **alt 1**: EP `0x01` OUT + `0x82` IN, **isochronous** | Built-in soundcard (Traktor Scratch audio). Vendor protocol, *not* USB-Audio-Class → no Linux PCM. |
+| 0 | Vendor-specific (0xFF) | alt 0: none; **alt 1**: EP `0x01` OUT + `0x82` IN, **isochronous** | Built-in soundcard. Vendor protocol, not USB-Audio-Class, so no kernel PCM; brought up by the userspace PipeWire driver in [`../audio/`](../audio/). |
 | 1 | Audio / Control | none | Control interface. Exposes **zero** ALSA mixer controls. |
-| 2 | Audio / MIDI Streaming | EP `0x04` OUT (bulk), `0x85` IN (bulk) | **MIDI.** Standard USB-MIDI class, single alt setting. Works with the generic driver once the device is armed. |
-| 3 | HID | EP `0x06` OUT (interrupt), `0x87` IN (interrupt) | HID interface (shows in Mixxx as "PIONEER DJM-T1 _3"). Not needed for MIDI mapping. |
+| 2 | Audio / MIDI Streaming | EP `0x04` OUT (bulk), `0x85` IN (bulk) | **MIDI.** Standard USB-MIDI class, single alt setting. But it only streams during the full multi-pipe session (see the gate below), not from arming alone. |
+| 3 | HID | EP `0x06` OUT (interrupt), `0x87` IN (interrupt) | HID interface. **Polling `0x87` is the MIDI transmission gate:** the mixer mirrors its control surface to both the MIDI (`0x85`) and HID (`0x87`) pipes, and will not transmit unless the HID pipe is being read. |
 
 ## The MIDI "arm" sequence
 
@@ -27,25 +27,32 @@ SETUP 40 03 wValue=0x0000 wIndex=0x8004
 
 `wIndex` `0x8002/0x8003/0x8004` look like device registers; `wValue` is the value
 written. The `0xC0` reads return `00 01 00` (a status/ack). `djm_arm` replays this
-verbatim; the device responds identically to Linux and to Windows.
+verbatim; the device responds identically on Linux and on Windows.
 
-The Windows driver additionally does `SET_INTERFACE(iface 0, alt 1)` to enable the
-isochronous **audio** endpoints and `SET_IDLE` on the HID interface — neither is
-needed to get MIDI.
+## The gate: arming is necessary, not sufficient
 
-**Volatility:** the armed state is lost on any USB re-enumeration (unplug, hub
-reset, cable drop) and on power-cycle. Re-run `djm_arm` after any of those; the
-udev rule automates it.
+Arming alone leaves the mixer silent on Linux, even with the MIDI input open and a
+bulk-IN read pending on `0x85`. The Windows driver keeps a **full session** live:
+`SET_INTERFACE(iface 0, alt 1)` plus isochronous audio streaming, the MIDI bulk-IN
+read on `0x85`, and (crucially) an interrupt read on the HID endpoint `0x87`. The
+mixer only transmits its control surface while its **HID pipe is polled alongside a
+live audio session**. The `djm_midi` bridge ([`../midi/`](../midi/)) sets up all of
+it. (The driver also sends a USB-Audio `SET_SAMPLING_FREQ = 48000` on `0x82`; that
+one turned out not to be part of the gate.) Full analysis:
+[WHITEPAPER.md](WHITEPAPER.md).
 
-## Audio (unsolved)
+**Volatility:** the armed/session state is lost on any USB re-enumeration (unplug,
+hub reset, cable drop) and on power-cycle, so `djm_midi` re-establishes it on every
+connect (run it as the provided systemd service).
 
-Interface 0 is vendor-specific isochronous, so there is no Linux driver and no PCM
-node. Making the built-in soundcard work would mean reverse-engineering the iso
-streaming setup (audio format/altsetting, sample-rate control, packet layout) from
-the Windows driver — capture `SET_INTERFACE`/vendor control traffic plus the iso
-data with usbmon while Windows streams audio, then write an ALSA (snd-usb quirk or
-standalone) or userspace driver. Contributions welcome. Until then, use a separate
-audio interface.
+## Audio (solved)
+
+Interface 0 is vendor-specific isochronous, so no kernel driver binds it. The format
+was reverse-engineered (48 kHz, 24-bit, 6-in/6-out; see
+[audio-plan.md](audio-plan.md)) and is streamed directly with libusb, exposed to
+PipeWire as a 6-in/6-out device by [`../audio/djmt1-pipewire`](../audio/). A kernel
+ALSA driver (upstreamable) is the planned next tier; see
+[audio-driver-design.md](audio-driver-design.md).
 
 ## Reproducing / extending the capture
 

@@ -1,8 +1,10 @@
 # The DJM-T1's built-in soundcard on Linux
 
-The mixer's audio is a vendor-specific interface with no Linux driver, so there is
-no PCM device. This documents the wire format (captured, below) and a driver path.
-Audio is a larger effort than the MIDI arm, but the capture makes it tractable.
+The mixer's audio is a vendor-specific interface with no kernel driver. This
+documents the wire format (captured, below) and the driver path. **Status: done.**
+The format below is streamed by the userspace PipeWire driver in [`../audio/`](../audio/),
+which exposes the mixer as a 6-in/6-out device; a kernel ALSA driver is the planned
+next tier ([audio-driver-design.md](audio-driver-design.md)).
 
 ## The interface
 
