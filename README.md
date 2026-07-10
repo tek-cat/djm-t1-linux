@@ -66,7 +66,7 @@ Both channels' trim / 3-band EQ / filter (color) / volume fader, crossfader, hea
 - 🔜 **LED output feedback**: `djm_midi` is bidirectional and writing to the mixer's MIDI OUT (ep `0x04`) is verified; conventional CUE-LED `<output>` blocks are in the mapping, pending a panel check.
 - 🔜 **10-bit control resolution**: the HID pipe carries every continuous control at 10-bit precision (MIDI exposes only 7). Since `djm_midi` already reads that pipe, exposing it as 14-bit MIDI is a code change, not new hardware. Analysis: [docs/hid-analysis.md](docs/hid-analysis.md).
 - 🔜 **Digital vinyl (DVS / timecode)**: the mixer was built for Traktor Scratch; its phono inputs are digitized to the USB channels we already stream, so they can drive Mixxx's vinyl control. Wiring: [docs/dvs-timecode.md](docs/dvs-timecode.md).
-- 🔜 **Unified daemon**: fold audio + MIDI into one process that owns all four pipes (today they run as two cooperating processes that coexist via `--no-audio`).
+- ✅ **Unified daemon**: `midi/djm_full` runs the soundcard and the MIDI controller in one process (all four pipes, no start-order coordination). Verified to bring up both halves at once; an optional single-service alternative to the two split services.
 
 See [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) for how to tackle the open items, with ready-to-run probe scripts in [`tools/`](tools/).
 

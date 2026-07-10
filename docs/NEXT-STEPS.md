@@ -42,24 +42,17 @@ input channels we already stream, so control vinyl can drive Mixxx's vinyl contr
 Wiring and Mixxx configuration: [dvs-timecode.md](dvs-timecode.md). **Left:** confirm
 the input-pair-to-deck map and that Mixxx locks onto the timecode.
 
-## 5. Single unified daemon  (medium effort)
+## 5. Single unified daemon  (built)
 
-Today audio and MIDI are two processes on different interfaces (`djmt1-pipewire`
-on iface 0; `djm_midi --no-audio` on ifaces 2+3), coordinated by the systemd
-`After=`/`Wants=` ordering so a live audio session exists before the bridge arms.
-A single daemon that owns all interfaces would remove that coupling and reduce
-install to one service.
-
-Concrete design (the pieces already exist):
-- Base it on `audio/djmt1-pipewire.c`, which already pairs a PipeWire main loop
-  with `djmt1_iso.c`'s libusb streaming thread via ring buffers.
-- Add MIDI/HID/arm to that same libusb thread: claim ifaces 2 and 3, submit the
-  ep `0x85` bulk read and ep `0x87` interrupt read, replay the arm (all lifted
-  from `midi/djm_midi.c`).
-- Set up the ALSA sequencer port in the main process; have the MIDI callback push
-  decoded events to it, and poll seq input for LED output, as `djm_midi` does.
-- One process owns all four pipes, so the gate's audio-session precondition is
-  always met and there is nothing to order.
+`midi/djm_full.c` folds audio and MIDI into one process: it starts the `djmt1_iso`
+audio engine (PipeWire, iface 0), then runs the MIDI/HID/arm bridge on a second
+libusb context (ifaces 2+3) in a thread, so one process owns all four pipes and the
+gate's audio-session precondition is always met (nothing to order). Build with
+`make -C midi djm_full`; run `./midi/djm_full`; install with
+`sudo make -C midi install-full` and `make -C midi install-full-service` (it
+replaces the two split services). Verified to start and bring up both halves at
+once (4 PipeWire nodes + the armed ALSA MIDI port, no crash); the live
+fader-to-Mixxx path is the same one-capture confirmation as the split setup.
 
 ## 6. Kernel drivers  (large effort, upstreamable)
 

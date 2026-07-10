@@ -1,0 +1,16 @@
+[Unit]
+Description=Pioneer DJM-T1 unified daemon (soundcard + MIDI controller, one process)
+Documentation=https://github.com/tek-cat/djm-t1-linux
+After=pipewire.service wireplumber.service
+Wants=pipewire.service
+# This REPLACES the two-service setup (djmt1-audio + djm-midi). Disable those
+# first: systemctl --user disable --now djmt1-audio djm-midi
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/djm_full
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
