@@ -54,7 +54,16 @@ replaces the two split services). Verified to start and bring up both halves at
 once (4 PipeWire nodes + the armed ALSA MIDI port, no crash); the live
 fader-to-Mixxx path is the same one-capture confirmation as the split setup.
 
-## 6. Kernel drivers  (large effort, upstreamable)
+## 6. Device configuration from Linux  (reverse-engineering)
+
+On Windows the Setting Utility configures the mixer (MIDI channel, and likely
+crossfader/fader curves) via vendor control writes, the same class of command as
+the arm. Capturing the utility while it changes each setting (same VM + usbmon
+method as [reverse-engineering.md](reverse-engineering.md)) would let those
+settings be changed from Linux with no Windows. Best done at the bench: it needs
+the device passed to the VM, which re-enumerates it.
+
+## 7. Kernel drivers  (large effort, upstreamable)
 
 The audio path is a userspace PipeWire driver; a proper kernel ALSA driver (real
 ALSA card) is the upstreamable next tier. See
