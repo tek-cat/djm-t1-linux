@@ -1,4 +1,4 @@
-# Reviving a Windows-only DJ mixer on Linux by reverse-engineering its USB "arm" command
+# Reviving a Windows-only DJ mixer on Linux: reverse-engineering the vendor arm command and the hidden multi-pipe MIDI gate
 
 **Author:** Aaron Landis
 **Date:** July 2026
@@ -6,7 +6,7 @@
 
 ## Abstract
 
-The Pioneer DJM-T1 is a DJ mixer that doubles as a MIDI control surface. On Windows and macOS it works; on Linux it enumerates as a MIDI device but transmits nothing, so every fader and knob is dead. This paper documents how I found the cause (the vendor's driver silently sends the mixer a proprietary "arm" command on connect, and there is no Linux driver to send it), how I recovered that command by capturing the Windows driver's USB traffic through a virtual machine using `usbmon`, and how I reproduced it natively on Linux in about sixty lines of C. The device accepts the reproduced command with byte-identical acknowledgements to the Windows driver. The result is a small tool plus a Mixxx mapping that make the mixer usable on Linux. The capture technique generalizes to any "works on Windows, dead on Linux" USB peripheral.
+The Pioneer DJM-T1 is a DJ mixer that doubles as a MIDI control surface. On Windows and macOS it works; on Linux it enumerates as a MIDI device but transmits nothing, so every fader and knob is dead. This paper documents the full cause and the working fix. The vendor's driver silently sends the mixer a proprietary "arm" command on connect, which I recovered by capturing the Windows driver's USB traffic through a passthrough virtual machine with `usbmon` and reproduced on Linux with byte-identical acknowledgements. But the arm turned out to be necessary, not sufficient: armed, with the MIDI input open, the mixer still emitted nothing. Diffing a complete working Windows session against the Linux attempts exposed the real gate. The DJM-T1 only transmits its control surface while a full data session is live across several USB pipes at once, and specifically while its HID interrupt endpoint is being actively polled alongside a live audio session; the mixer mirrors its control-surface data to both the MIDI and the HID endpoints in lockstep. Stock Linux opens neither the HID interface nor a PCM stream, so the mixer stays gated shut. The fix is `djm_midi`, a single libusb-to-ALSA-sequencer bridge that claims the MIDI, HID and (optionally) audio interfaces, replays the arm, polls the HID pipe to un-gate transmission, and forwards the USB-MIDI stream into an ALSA sequencer port. It is confirmed end to end: moving the faders now streams real Control Change messages into Mixxx, the first native-Linux MIDI this mixer has produced. With one flag it leaves the audio interface free for the repository's separate PipeWire soundcard driver, so the DJM-T1 works as soundcard and MIDI controller on Linux at the same time. The capture technique generalizes to any "works on Windows, dead on Linux" USB peripheral.
 
 ## 1. Background
 
@@ -40,6 +40,8 @@ To isolate the arm, the device is detached from the VM back to the host, the cap
 
 ## 4. Findings
 
+### 4.1 The arm: vendor control transfers
+
 Filtering the standard enumeration (descriptor reads, `SET_INTERFACE`) out of the trace leaves a short run of **vendor control transfers** that the Linux generic driver never issues. These are the arm. Each is a control write with `bmRequestType = 0x40` (vendor, host-to-device, device recipient) and `bRequest = 0x03`, interleaved with read-backs:
 
 ```
@@ -50,34 +52,62 @@ WRITE  bRequest=0x03  wValue=0x0000  wIndex=0x8003
 WRITE  bRequest=0x03  wValue=0x0000  wIndex=0x8004
 ```
 
-The `wIndex` values `0x8002`, `0x8003`, and `0x8004` behave like device registers; `wValue` is the value written. The read-backs (`bmRequestType = 0xC0`) return `00 01 00`, a status acknowledgement. Immediately after these writes, the Windows driver posts a bulk-IN read on the MIDI endpoint, that is, it starts listening for the MIDI the mixer will now produce. Everything else in the trace is either standard enumeration or the separate setup of the isochronous audio interface, which is not needed for MIDI.
+The `wIndex` values `0x8002`, `0x8003`, and `0x8004` behave like device registers; `wValue` is the value written. The read-backs (`bmRequestType = 0xC0`) return `00 01 00`, a status acknowledgement. Reproduced natively with libusb, every write returns status `0` and every read returns `00 01 00`, byte-for-byte identical to the responses the mixer gave the Windows driver. Because these requests target the device (not an interface), no interface claim is needed to issue them. This establishes the arm as correct at the protocol layer.
 
-## 5. Native reimplementation and verification
+### 4.2 The arm is necessary, not sufficient
 
-The reproduction is direct. Using libusb, open the device and issue each transfer with `libusb_control_transfer`. Because the requests target the device (not an interface), no interface claim or kernel-driver detach is required, and the ALSA MIDI port remains available to `amidi` and Mixxx afterward:
+Here is the turn the first pass of this work missed. Arming the device is required, but it does not, by itself, make the mixer talk. Armed on Linux, with the ALSA MIDI input open and a bulk-IN read pending on the MIDI endpoint (`0x85`), moving a fader produced **zero** MIDI bytes. The acknowledgements were perfect and the stream was still dead. Something beyond the arm gates transmission, and reproducing the arm alone (the earlier conclusion of this paper) does not revive the mixer.
 
-```c
-libusb_control_transfer(h, 0x40, 0x03, 0x1100, 0x8002, NULL, 0, 1000);
-libusb_control_transfer(h, 0xc0, 0x00, 0x0000, 0x8002, buf, 3, 1000); // -> 00 01 00
-// ...three more writes...
-```
+### 4.3 The hidden gate: a live multi-pipe session and HID polling
 
-**Verification.** Running the tool on the Linux host, every write returns status `0` and every read returns `00 01 00`, byte-for-byte identical to the responses the mixer gave the Windows driver. The device accepts the natively-issued arm exactly as it accepts the vendor's. This establishes correctness at the protocol layer.
+The answer came from diffing the *complete* working Windows session, captured end to end with `usbmon` over the passthrough, rather than just the arm at connect. The working session keeps **four USB pipes live at once**:
 
-One honest caveat about scope: the mixer emits MIDI only when a physical control is moved (this is true on Windows as well; opening the port alone yields no data). Confirming the resulting MIDI stream end-to-end therefore requires a hand on the hardware, the final field validation. The reverse-engineering itself, the identification and faithful reproduction of the arm, is complete and verified.
+- isochronous audio **IN** (`0x82`) and **OUT** (`0x01`), the built-in soundcard;
+- the USB-MIDI bulk **IN** (`0x85`), the MIDI we want;
+- the HID interrupt **IN** (`0x87`).
 
-## 6. Productionizing
+The decisive detail: the mixer **mirrors its control-surface data to both the MIDI endpoint (`0x85`) and the HID endpoint (`0x87`) in lockstep.** On stock Linux neither condition is ever met. Nothing opens the HID interface, so `usbhid` never polls `0x87`, and nothing opens a PCM stream, so the audio interface stays idle. The mixer stays gated shut.
 
-Two pieces make this usable day to day:
+I confirmed the gate with a single libusb owner replicating the Windows session and changing one variable at a time:
 
-- **Auto-arm.** A udev rule grants the user non-root access to the device and, on plug-in, triggers a systemd oneshot that runs the arm tool. The armed state is volatile (any USB re-enumeration clears it), so re-arming automatically on every connect is the correct behavior.
-- **Mixxx mapping.** The full control surface was mapped by arming the device and reading `amidi` while moving each control: both channels' trim, three-band EQ, filter, and volume; the crossfader; headphone mix; the browse encoder (a relative encoder) with its push; the cue and load buttons. All controls transmit on MIDI channel 1.
+| Session state | MIDI out |
+|---|---|
+| armed + MIDI read pending | silent |
+| armed + MIDI read pending + live isochronous audio session | silent |
+| armed + MIDI read pending + live audio + HID interrupt (`0x87`) polled | **flows** |
+
+The conclusion, stated as this paper's key finding: **the DJM-T1 gates its control-surface MIDI on its HID pipe being actively polled, together with a live audio session.** Polling the HID endpoint is precisely what the stock Linux stack never does, and it is the missing trigger the arm alone cannot supply.
+
+One red herring was ruled out along the way. The Windows driver also sends a USB-Audio `SET_SAMPLING_FREQ = 48000` class request on the audio-IN endpoint (`bmRequestType = 0x22`, `SET_CUR`). Isolating it showed it is **not** the trigger: a live audio session from any source un-gates the mixer whether or not that specific request is replayed. The bridge still issues it when it owns the audio interface, purely to mirror Windows, but it is not part of the gate.
+
+## 5. Verification: confirmed end to end and in Mixxx
+
+The earlier version of this work could only claim correctness at the protocol layer and noted that confirming the MIDI stream end to end was "a hand on the hardware away." That field validation has now been done, and it passes.
+
+With `djm_midi` running (Section 6), moving the mixer's faders and knobs streamed **154+ real Control Change messages on MIDI channel 1** in a single short session. The volume faders report on CC `0x15` and `0x16`, the crossfader on `0x17`, the headphone mix on `0x18`, and the trim, three-band EQ, filter and browse encoder each on their own controller number (the full table is in `docs/midi-map.md`). This was verified three independent ways:
+
+1. the bridge's own decode (`djm_midi -v` prints each message as it is bridged);
+2. an independent `aseqdump` subscribed to the bridge's ALSA sequencer port; and
+3. **live in Mixxx**: the mixer now drives Mixxx's controls directly.
+
+This is the first native-Linux MIDI the DJM-T1 has produced. The reverse-engineering and the working driver are complete, not just the protocol reproduction.
+
+## 6. Productionizing: the djm_midi bridge
+
+The fix ships as a single tool, `midi/djm_midi.c`, a libusb-to-ALSA-sequencer bridge that turns the multi-pipe discovery into something you run once and forget:
+
+- **It brings up the full session.** It claims the MIDI interface (iface 2) and the HID interface (iface 3), and optionally the audio interface (iface 0), replays the arm, then **polls the HID interrupt endpoint** to un-gate transmission, exactly the condition Section 4.3 identified.
+- **It presents an ordinary MIDI port.** It decodes the USB-MIDI event packets arriving on `0x85` (each is a 4-byte packet whose code-index number selects how many raw MIDI bytes follow) and forwards the recovered MIDI into an ALSA sequencer port named **"Pioneer DJM-T1"**. Mixxx, `aseqdump`, or anything that reads ALSA sequencer MIDI connects to that port; nothing downstream knows the arming and HID poll happened underneath.
+- **It coexists with the soundcard.** With `--no-audio`, `djm_midi` leaves the audio interface (iface 0) unclaimed, so the repository's separate PipeWire soundcard driver (`djmt1-pipewire`, in `audio/`) owns it instead. That PipeWire stream supplies the live audio session the gate requires. This is confirmed live: **MIDI streaming and 6-channel audio at the same time**, the DJM-T1 working as both soundcard and MIDI controller on Linux simultaneously.
+- **It re-establishes the session on every connect.** A udev rule grants non-root device access, and a per-user systemd service runs the bridge persistently. The armed and un-gated state is volatile (any USB re-enumeration clears it), so a service that restarts and re-arms on every plug-in is the correct model.
+- **Mixxx mapping.** The full control surface was mapped by moving each control and reading the port: both channels' trim, three-band EQ, filter and volume; the crossfader; headphone mix; the browse encoder (a relative encoder) with its push; the cue and load buttons. All controls transmit on MIDI channel 1.
 
 ## 7. Limitations and future work
 
-- **Built-in soundcard.** The DJM-T1's audio is a vendor-specific isochronous interface, not USB-Audio-Class, so Linux exposes no PCM device. Bringing it up would mean reverse-engineering the isochronous streaming setup (format, sample-rate control, packet layout) the same way and writing an ALSA or userspace driver. This is the largest remaining opportunity.
-- **LED feedback.** The cue buttons illuminate. Mapping Mixxx state back to them is a small extension, discoverable on Linux by sending MIDI to the device and observing which messages light which LEDs.
-- **HID interface.** The mixer's fourth interface is HID; whether it carries anything the MIDI interface does not is an open question worth a capture.
+- **HID interface: resolved.** In the earlier write-up, whether the HID interface carried anything the MIDI interface did not was "an open question worth a capture." It is now answered: the HID pipe is the transmission **gate**. Actively polling it, together with a live audio session, is what makes the mixer stream MIDI at all. It behaves less like an alternate data path and more like an interlock.
+- **Built-in soundcard: solved.** The DJM-T1's audio is a vendor-specific isochronous interface, not USB-Audio-Class. It is now brought up by a userspace PipeWire driver (`audio/`, a 6-in/6-out, 48 kHz, 24-bit device), documented separately in this repository. It is no longer an open problem.
+- **A single unified daemon.** `djm_midi` and `djmt1-pipewire` currently run as two cooperating processes that each open the device (coexisting cleanly via `--no-audio`). Folding audio and MIDI into one process that owns all four pipes would remove the coordination between them and guarantee the gate's audio-session precondition is always met.
+- **LED output feedback.** The cue buttons illuminate. Mapping Mixxx state back to them is a small extension, discoverable on Linux by sending MIDI to the device and observing which messages light which LEDs.
 
 ## 8. Reproducibility
 
@@ -85,7 +115,7 @@ The method is not specific to this mixer. For any USB device that works on Windo
 
 1. Run Windows in a VM and pass the device through with libvirt `<hostdev>`.
 2. Capture on the **host** with `usbmon` while the Windows driver binds or exercises the device.
-3. Diff the trace against what the Linux driver does; the vendor-specific transfers that only Windows sends are the missing initialization.
+3. Diff the trace against what the Linux driver does; the vendor-specific transfers that only Windows sends are the missing initialization. Capture the *complete working session*, not just the connect: as this device showed, the missing piece can be a pipe that must stay open, not only a command that must be sent.
 4. Reproduce them with libusb.
 
 The tooling, the Mixxx mapping, and step-by-step reproduction notes are in the accompanying repository.
@@ -94,7 +124,7 @@ The tooling, the Mixxx mapping, and step-by-step reproduction notes are in the a
 
 | Interface | Class | Endpoints | Role |
 |---|---|---|---|
-| 0 | Vendor-specific | iso `0x01` OUT / `0x82` IN (alt 1) | Built-in soundcard (no Linux driver) |
+| 0 | Vendor-specific | iso `0x01` OUT / `0x82` IN (alt 1) | Built-in soundcard (userspace PipeWire driver, `audio/`) |
 | 1 | Audio control | none | Control interface (no ALSA controls) |
-| 2 | USB-MIDI | bulk `0x04` OUT / `0x85` IN | MIDI (works once armed) |
-| 3 | HID | int `0x06` OUT / `0x87` IN | HID |
+| 2 | USB-MIDI | bulk `0x04` OUT / `0x85` IN | MIDI in (streams only during the full multi-pipe session; see 4.3) |
+| 3 | HID | int `0x06` OUT / `0x87` IN | HID; polling `0x87` is the MIDI transmission gate (see 4.3) |
