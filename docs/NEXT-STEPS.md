@@ -1,54 +1,49 @@
 # Next steps: extending the DJM-T1 support
 
-Runbook for the open roadmap items. Items 1 to 3 are done at the mixer on Linux
-(no VM needed) now that we can arm it; item 4 is a separate capture project.
+The core is solved: **MIDI works** (via `midi/djm_midi`, which arms the mixer,
+polls the HID pipe to un-gate transmission, and bridges USB-MIDI to an ALSA
+sequencer port) and the **built-in soundcard works** (via `audio/djmt1-pipewire`).
+Run both together for the full mixer (`djm_midi --no-audio` + `djmt1-pipewire`,
+or the two systemd user services). What's left is refinement.
 
-**Prereqs:** build/install once (`make -C arm`, or `./install.sh`), plug the mixer
-into a solid USB 2.0 port, and make sure it is armed (`sudo djm_arm`, or the udev
-rule auto-arms it on plug-in). Confirm MIDI flows: `amidi -p hw:X,0,0 -d` then move
-a fader.
+**Prereqs:** build/install (`make -C midi && make -C audio`), plug into a solid
+USB 2.0 port, start the bridge (`midi/djm_midi`). Confirm MIDI flows:
+`aseqdump -p "Pioneer DJM-T1"` then move a fader.
 
 ## 1. LED / output feedback  (low effort)
 
 Goal: light the mixer's LEDs (cue buttons, etc.) from Mixxx state.
 
+`djm_midi` is already bidirectional: MIDI sent to its ALSA port is written to the
+mixer's MIDI OUT (ep `0x04`). Send test messages and watch the panel to learn
+which message lights which LED (start with the cue notes `0x2F`/`0x30`):
+
 ```sh
-sudo tools/probe-leds.sh          # sends each note to the mixer, one per ~1.5s
+aconnect <your-source> "Pioneer DJM-T1"   # or use aplaymidi to send notes/CCs
 ```
-Watch the panel and note which note numbers light which LEDs (start by checking
-whether the cue notes `0x2F`/`0x30` light the cue buttons). Report the mapping and
-add matching `<output>` blocks to `mixxx/Pioneer-DJM-T1.midi.xml`.
+
+Then add matching `<output>` blocks to `mixxx/Pioneer-DJM-T1.midi.xml`.
 
 ## 2. Finish the MIDI map  (low effort)
 
-Goal: map the FX section and any assignable buttons not yet covered.
+Map the FX section and any assignable buttons not yet covered. Run the bridge,
+watch `aseqdump -p "Pioneer DJM-T1"`, move each unmapped control one at a time,
+and add the new CC/Note numbers to [midi-map.md](midi-map.md) and the mapping.
 
-```sh
-sudo tools/capture-controls.sh 120     # arms + records for 2 min
-#   ... move each unmapped control one at a time ...
-tools/decode-midi.sh /tmp/djm-capture.txt
-```
-The decode table lists each distinct CC/Note. Add the new controls to the mapping.
-Existing map: [midi-map.md](midi-map.md).
+## 3. Single unified daemon  (medium effort)
 
-## 3. HID interface  (medium effort)
+Today audio and MIDI are two processes sharing the device on different interfaces
+(`djmt1-pipewire` on iface 0; `djm_midi --no-audio` on ifaces 2+3). A single
+daemon that owns all interfaces and exposes both the PipeWire audio device and the
+ALSA MIDI port would remove the start-order coupling (MIDI needs a live audio
+session) and simplify install to one service. The building blocks are in
+`audio/djmt1_iso.c` and `midi/djm_midi.c`.
 
-Goal: find out whether interface 3 (HID) carries anything MIDI doesn't.
+## 4. Kernel drivers  (large effort, upstreamable)
 
-```sh
-sudo tools/probe-hid.sh 30
-#   ... move controls / press buttons ...
-```
-If report bytes track a control that MIDI doesn't expose, that control lives on HID
-and would need an HID mapping (Mixxx supports HID via a JS parser).
-
-## 4. Built-in soundcard  (large effort, separate project)
-
-Vendor-specific isochronous audio interface, no Linux driver. Full plan:
-[audio-plan.md](audio-plan.md). Needs another VM + usbmon capture session, then a
-driver. MIDI does not depend on this.
+The audio path is a userspace PipeWire driver; a proper kernel ALSA driver (real
+ALSA card) is the upstreamable next tier. See [audio-driver-design.md](audio-driver-design.md).
 
 ---
 
-When you have results from 1 to 3, send them over and they get folded into the
-mapping and docs.
+Results from 1 and 2 fold straight into the mapping and docs. PRs welcome.

@@ -1,0 +1,23 @@
+[Unit]
+Description=Pioneer DJM-T1 native MIDI bridge (libusb -> ALSA sequencer)
+Documentation=https://github.com/tek-cat/djm-t1-linux
+After=sound.target djmt1-audio.service
+# The mixer only transmits MIDI while an audio session is live, so pair this
+# with the audio service. If you don't run djmt1-audio, drop the --no-audio
+# flag below and djm_midi will keep its own audio session alive internally.
+Wants=djmt1-audio.service
+
+[Service]
+Type=simple
+# Give the audio service a moment to bring its session up before we arm, since
+# MIDI transmit is gated on a live audio session.
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/local/bin/djm_midi --no-audio
+# Restart on any exit so the bridge recovers across unplug/replug: djm_midi
+# exits when the device disappears, and its open-retry loop waits for it to
+# come back on the next start.
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
